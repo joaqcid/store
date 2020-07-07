@@ -9,6 +9,11 @@ import { Injectable } from '@angular/core';
 describe('[TEST]: Devtools with custom settings', () => {
   let store: Store;
 
+  class TestActionPayload {
+    public static readonly type = 'TestActionPayload';
+    constructor(public action: string) {}
+  }
+
   @State({
     name: 'count',
     defaults: 0
@@ -17,6 +22,11 @@ describe('[TEST]: Devtools with custom settings', () => {
   class CountState {
     @Action({ type: 'increment' })
     increment(ctx: StateContext<number>) {
+      ctx.setState(state => state + 1);
+    }
+
+    @Action(TestActionPayload)
+    actionPayload(ctx: StateContext<number>) {
       ctx.setState(state => state + 1);
     }
   }
@@ -48,5 +58,83 @@ describe('[TEST]: Devtools with custom settings', () => {
     store = TestBed.inject(Store);
 
     expect(devtools.options).toEqual({ name: 'custom', maxAge: 1000 });
+  });
+
+  describe('actionSanitizer', () => {
+    it('should call actionSanitizer', () => {
+      const actionSanitizerFn = jest.fn();
+      TestBed.configureTestingModule({
+        imports: [
+          NgxsModule.forRoot([CountState]),
+          NgxsReduxDevtoolsPluginModule.forRoot({
+            actionSanitizer: actionSanitizerFn
+          })
+        ]
+      });
+      store = TestBed.inject(Store);
+
+      store.dispatch(new TestActionPayload('test'));
+      expect(actionSanitizerFn).toHaveBeenCalled();
+    });
+
+    it('should sanitize action before sending to devtools', () => {
+      const devtools = new ReduxDevtoolsMockConnector();
+      createReduxDevtoolsExtension(devtools);
+      TestBed.configureTestingModule({
+        imports: [
+          NgxsModule.forRoot([CountState]),
+          NgxsReduxDevtoolsPluginModule.forRoot({
+            actionSanitizer: action => ({
+              ...action,
+              action: null
+            })
+          })
+        ]
+      });
+      store = TestBed.inject(Store);
+
+      const spy = spyOn(devtools, 'send');
+      store.dispatch(new TestActionPayload('test'));
+      expect(spy).toHaveBeenCalledWith(
+        {
+          action: null,
+          type: 'TestActionPayload'
+        },
+        {
+          count: 1
+        }
+      );
+    });
+
+    it('should work when actionSanitizer is empty', () => {
+      const devtools = new ReduxDevtoolsMockConnector();
+      createReduxDevtoolsExtension(devtools);
+      TestBed.configureTestingModule({
+        imports: [NgxsModule.forRoot([CountState]), NgxsReduxDevtoolsPluginModule.forRoot()]
+      });
+      store = TestBed.inject(Store);
+
+      const spy = spyOn(devtools, 'send');
+      store.dispatch(new TestActionPayload('test'));
+      expect(spy).toHaveBeenCalledWith(
+        {
+          action: 'test',
+          type: 'TestActionPayload'
+        },
+        {
+          count: 1
+        }
+      );
+
+      store.dispatch({ type: 'increment' });
+      expect(spy).toHaveBeenCalledWith(
+        {
+          type: 'increment'
+        },
+        {
+          count: 2
+        }
+      );
+    });
   });
 });

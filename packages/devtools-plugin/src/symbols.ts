@@ -37,7 +37,7 @@ export interface NgxsDevtoolsOptions {
   /**
    * Reformat actions before sending to dev tools
    */
-  actionSanitizer?: (action: any) => void;
+  actionSanitizer?: (action: any) => any;
 
   /**
    * Reformat state before sending to devtools
